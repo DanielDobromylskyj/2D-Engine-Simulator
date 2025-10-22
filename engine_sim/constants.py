@@ -7,6 +7,7 @@ fuel_density = 750  # kg/m^3
 
 air_molar_mass = 0.02897
 fuel_molar_mass = 0.11423
+exhaust_molar_mass = 0.0286
 
 fuel_burn_per_second = 0.1  # kg/s
 fuel_energy_per_kg = 44_000  # KJ/kg

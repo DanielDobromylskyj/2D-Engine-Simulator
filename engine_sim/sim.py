@@ -42,8 +42,12 @@ class Cylinder:
         return (self.contents["air"] / air_molar_mass) * avogadro_constant
 
     @property
+    def exhaust_particles(self):
+        return (self.contents["exhaust"] / exhaust_molar_mass) * avogadro_constant
+
+    @property
     def pressure(self):
-        particle_count = self.fuel_particles + self.air_particles
+        particle_count = self.fuel_particles + self.air_particles + self.exhaust_particles
         return (self.temperature * boltzmann_constant * particle_count) / self.volume  # fixme - make volume based on gas amount, NOT actual volume of cylinder
 
     @property
@@ -139,9 +143,6 @@ class Cylinder:
         if combustion_energy == 0:
             self.__combusting = False
 
-        # 𝑄 = mc (delta)T
-        # (delta)T = energy / mass * constant
-
         self.temperature += combustion_energy / (mass * self.average_cp)
 
         self.contents["fuel"] -= fuel_quantity
@@ -155,7 +156,7 @@ class Cylinder:
     def exhaust(self):
         max_exhaust_mass = (atmospheric_pressure * self.volume) / (exhaust_R * self.temperature)
         self.contents["exhaust"] = min(max_exhaust_mass, self.contents["exhaust"])
-        self.temperature = 273 + 100
+        self.temperature = 273 + 200
 
     def simulate(self, deltaTime: float):
         if self.__combusting:
@@ -201,7 +202,7 @@ class Engine:
         self.last_fire = len(self.fire_order) - 1
         self.starter_timer = 0
 
-        self.fuel_volume_per_cycle = 0.2
+        self.fuel_volume_per_cycle = 0.001
 
     def __prepare_cylinders(self):
         shift = (2 * math.pi) / len(self.cylinders)
@@ -234,7 +235,7 @@ class Engine:
 
         for idx, cylinder in enumerate(self.cylinders):
             stage = (self.fire_order[idx] + ((cylinder.crank_rotation % (4 * math.pi)) // math.pi)) % 4
-            if self.cylinder_stages[idx] == stage:
+            if self.cylinder_stages[idx] == stage and stage != 3.0:
                 continue
 
             self.cylinder_stages[idx] = stage
@@ -264,7 +265,8 @@ class Engine:
         crank_moment = 0
         for cylinder in self.cylinders:
             cylinder.simulate(deltaTime)
-            crank_moment += cylinder.crank_moment
+            moment = cylinder.crank_moment
+            crank_moment += moment if moment > 0 else moment * 0.5
             print(f"{cylinder.crank_moment}, ", end="")
         print("")
 

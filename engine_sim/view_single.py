@@ -7,7 +7,7 @@ from .sim import Cylinder
 def kelvin_to_rgb(temp_k: float) -> tuple[int, int, int]:
     """
     Convert a color temperature in Kelvin to an approximate RGB color.
-    Returns (R, G, B) values from 0–255.
+    Returns (R, G, B) values from 0–255 -> BLACK MAGIC
     """
 
     # Clamp to valid range for this approximation
@@ -229,5 +229,8 @@ class View:
 
             text = self.font.render(f"Mode: {self.cylinder.mode}", True, (255, 255, 255))
             self.debug_layer.blit(text, (5, 35))
+
+            text = self.font.render(f"Content: Air - {round(self.cylinder.contents['air'], 2)}, Fuel - {round(self.cylinder.contents['fuel'], 2)}, Exhaust - {round(self.cylinder.contents['exhaust'], 2)}", True, (255, 255, 255))
+            self.debug_layer.blit(text, (5, 50))
 
             self.surface.blit(self.debug_layer, (0, 0))
