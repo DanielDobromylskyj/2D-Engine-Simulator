@@ -42,9 +42,10 @@ def kelvin_to_rgb(temp_k: float) -> tuple[int, int, int]:
 
 
 class View:
-    def __init__(self, surface, cylinder: Cylinder, debug: bool = False):
+    def __init__(self, surface, engine, cylinder: Cylinder, debug: bool = False):
         self.surface = surface
         self.debug_layer = None
+        self.engine = engine
         self.cylinder = cylinder
         self.debug = debug
 
@@ -232,5 +233,8 @@ class View:
 
             text = self.font.render(f"Content: Air - {round(self.cylinder.contents['air'], 2)}, Fuel - {round(self.cylinder.contents['fuel'], 2)}, Exhaust - {round(self.cylinder.contents['exhaust'], 2)}", True, (255, 255, 255))
             self.debug_layer.blit(text, (5, 50))
+
+            text = self.font.render(f"Throttle: {round(self.engine.throttle, 2)}", True, (255, 255, 255))
+            self.debug_layer.blit(text, (5, 65))
 
             self.surface.blit(self.debug_layer, (0, 0))
