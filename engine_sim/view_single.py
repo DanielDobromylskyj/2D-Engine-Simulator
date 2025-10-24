@@ -231,7 +231,7 @@ class View:
             text = self.font.render(f"Mode: {self.cylinder.mode}", True, (255, 255, 255))
             self.debug_layer.blit(text, (5, 35))
 
-            text = self.font.render(f"Content: Air - {round(self.cylinder.contents['air'], 2)}, Fuel - {round(self.cylinder.contents['fuel'], 2)}, Exhaust - {round(self.cylinder.contents['exhaust'], 2)}", True, (255, 255, 255))
+            text = self.font.render(f"Content: Air - {round(self.cylinder.contents['air'], 3)}, Fuel - {round(self.cylinder.contents['fuel'], 3)}, Exhaust - {round(self.cylinder.contents['exhaust'], 3)}", True, (255, 255, 255))
             self.debug_layer.blit(text, (5, 50))
 
             text = self.font.render(f"Throttle: {round(self.engine.throttle, 2)}", True, (255, 255, 255))
