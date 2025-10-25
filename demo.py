@@ -27,7 +27,7 @@ while running:
             engine.throttle = 0
 
     deltaTime = clock.get_time() / 1000
-    engine.simulate(deltaTime)
+    engine.simulate(deltaTime * 0.1)
 
     view.draw()
     pygame.display.flip()

@@ -19,22 +19,21 @@ class Cylinder:
         self.crank_radius = crank_radius
         self.rod_length = rod_length
 
-        self.displacement = math.pi * (radius ** 2) * self.stroke
-
         self.crank_rotation = 0.0
         self.crank_angular_velocity = 0.0
 
-        self.temperature = ROOM_TEMP  # kelvin
         self.__combusting = False
-        self.mode = "N/A"
 
-        self.previous_volume = float(self.volume)
+        self.temperature = ROOM_TEMP  # kelvin
+        self.mode = "None"
 
         self.contents = {
             "fuel": 0.0,  # kg
             "air": 0.0,  # kg
             "exhaust": 0.0  # kg
         }
+
+        self.previous_volume = float(self.volume)
 
     @property
     def fuel_particles(self):
@@ -54,8 +53,40 @@ class Cylinder:
         return (self.temperature * boltzmann_constant * particle_count) / self.volume
 
     @property
+    def external_piston_pressure(self):
+        return self.area * atmospheric_pressure
+
+    @property
+    def volume(self):
+        """ The current volume of the cylinder, at its current crank angle """
+        return self.area * (self.height - self.pin_offset)
+
+    @property
+    def volume_at_TDC(self):
+        return self.area * (self.height - self.crank_radius + self.rod_length)
+
+    @property
+    def area(self):
+        return math.pi * (self.radius ** 2)
+
+    @property
     def rpm(self):
         return (self.crank_angular_velocity * 60.0) / (2.0 * math.pi)
+
+    @property
+    def piston_force(self):
+        """ Negative numbers are it "pushing" down and positives are it being "pulled" back up"""
+        return (self.pressure - self.external_piston_pressure) * self.area
+
+    @property
+    def crank_moment(self):
+        theta = self.crank_rotation + (math.pi / 8.0)
+        alpha = math.asin((self.crank_radius * math.sin(theta)) / self.rod_length)
+        beta = 90 - theta - alpha
+
+        print(self.piston_force)
+
+        return self.crank_radius * (self.piston_force * math.cos(beta))
 
     @property
     def stroke(self):
@@ -64,26 +95,6 @@ class Cylinder:
     @property
     def crank_position(self):
         return self.crank_radius * math.sin(self.crank_rotation), self.crank_radius * math.cos(self.crank_rotation)
-
-    @property
-    def volume(self):
-        return self.min_volume + (self.piston_travel_from_TDC * self.area)
-
-    @property
-    def min_volume(self):
-        return (self.height - (self.rod_length + self.crank_radius)) * self.area
-
-    @property
-    def area(self):
-        return math.pi * (self.radius ** 2)
-
-    @property
-    def piston_force(self):
-        """
-            Pressure = Force / Area
-            Force = Pressure * Area
-        """
-        return (self.pressure - atmospheric_pressure) * self.area
 
     @property
     def pin_offset(self):
@@ -101,18 +112,6 @@ class Cylinder:
         b = math.sqrt((self.rod_length ** 2) - ((self.crank_radius ** 2) * (math.sin(self.crank_rotation) ** 2)))
         return a + b
 
-    @property
-    def piston_travel_from_TDC(self):
-        r = self.crank_radius
-        l = self.rod_length
-        theta = self.crank_rotation
-        return r * math.cos(theta) + math.sqrt(max(0.0, l ** 2 - (r * math.sin(theta)) ** 2)) - l
-
-    def __apply_angular_velocity(self, deltaTime):
-        self.crank_rotation += self.crank_angular_velocity * deltaTime
-
-        if self.crank_rotation > 4 * math.pi:
-            self.crank_rotation -= 4 * math.pi
 
     def spark(self):
         self.__combusting = True
@@ -133,10 +132,6 @@ class Cylinder:
         mass_air = self.contents["air"]
         return (self.cp_exhaust * mass_ex + self.cp_air * mass_air) / (mass_ex + mass_air + 1e-9)
 
-    @property
-    def crank_moment(self):
-        return self.crank_radius * (self.piston_force * math.sin(self.crank_rotation))
-
     def __combust(self, deltaTime):
         # Only burn when piston is moving down (after TDC)
         if math.cos(self.crank_rotation) < 0:
@@ -151,15 +146,12 @@ class Cylinder:
             fuel_quantity = air_quantity / stoichiometric_air_fuel_ratio
 
         mass = fuel_quantity + air_quantity + self.contents["exhaust"]
-        combustion_energy = fuel_quantity * fuel_energy_per_kg
+        combustion_energy = fuel_quantity * fuel_energy_per_kg * 0.1
 
         if combustion_energy == 0:
             self.__combusting = False
             return
 
-        if self.average_cp == 0:
-            self.__combusting = False
-            return
 
         self.temperature += combustion_energy / (mass * self.average_cp)
 
@@ -173,37 +165,46 @@ class Cylinder:
         self.contents["air"] += air
 
     def exhaust(self):
-        max_exhaust_mass = (atmospheric_pressure * self.volume) / (exhaust_R * self.temperature)
+        volume_change = self.previous_volume - self.volume
 
-        if abs(max_exhaust_mass) > 10:
-            print("[WARNING] Max Exhaust is high:", max_exhaust_mass, (exhaust_R, self.temperature))
+        max_exhaust_mass = (atmospheric_pressure * volume_change) / (exhaust_R * self.temperature)
 
-        self.contents["exhaust"] -= max_exhaust_mass
+        self.temperature *= 0.99
 
-        if self.contents["exhaust"] < 0:
-            self.contents["exhaust"] = 0
+        for key in ["air", "exhaust"]:
+            self.contents[key] -= max_exhaust_mass
 
-        self.temperature = 273 + 100  # Idk how to do this
+            if self.contents[key] < 0:
+                self.contents[key] = 0
+
+
+
+    def __apply_angular_velocity(self, deltaTime):
+        self.crank_rotation += self.crank_angular_velocity * deltaTime
+
+        if self.crank_rotation > 4 * math.pi:
+            self.crank_rotation -= 4 * math.pi
+
 
     def simulate(self, deltaTime: float):
+        self.__apply_angular_velocity(deltaTime)
+
         if self.__combusting:
             self.__combust(deltaTime)
 
-        self.__apply_angular_velocity(deltaTime)
-        end_volume = float(self.volume)
+        new_volume = float(self.volume)
 
         gamma = 1.4  # for air
 
-
-        ratio = self.previous_volume / end_volume
+        ratio = self.previous_volume / new_volume
         if 1e-4 < ratio < 1e4:
             ratio = max(0.5, min(2.0, ratio))
             self.temperature *= ratio ** (gamma - 1)
 
         self.temperature -= (self.temperature - ROOM_TEMP) * 0.0001
         self.temperature = max(min(self.temperature, 4000), 250)
+        self.previous_volume = new_volume
 
-        self.previous_volume = end_volume
 
 
 class Engine:
@@ -212,24 +213,18 @@ class Engine:
         self.cylinder_height_mm = 80
         self.rod_length_mm = 60
         self.crank_radius_mm = 15
-        self.crank_mass_kg = 2
+        self.crank_mass_kg = 30
 
-        self.starter_torque = 0.8  # Nm
+        self.starter_torque = 200  # Nm
         self.friction_coefficient = 0.8
 
         self.cylinders = [
             Cylinder(self.cylinder_radius_mm / 1000, self.cylinder_height_mm / 1000, self.crank_radius_mm / 1000,
-                     self.rod_length_mm / 1000),
-            Cylinder(self.cylinder_radius_mm / 1000, self.cylinder_height_mm / 1000, self.crank_radius_mm / 1000,
-                     self.rod_length_mm / 1000),
-            Cylinder(self.cylinder_radius_mm / 1000, self.cylinder_height_mm / 1000, self.crank_radius_mm / 1000,
-                     self.rod_length_mm / 1000),
-            Cylinder(self.cylinder_radius_mm / 1000, self.cylinder_height_mm / 1000, self.crank_radius_mm / 1000,
-                     self.rod_length_mm / 1000),
+                     self.rod_length_mm / 1000)
         ]
 
         self.cylinder_stages = []  # Auto generated
-        self.fire_order = [0, 2, 3, 1]
+        self.fire_order = [0]
 
         self.__prepare_cylinders()
 
@@ -240,7 +235,7 @@ class Engine:
         self.starter_timer = 0
 
         self.fuel_volume_per_cycle = 0.001
-        self.idle_fuel_volume_per_cycle = 0.000001
+        self.idle_fuel_volume_per_cycle = 0.0001
         self.idle_rpm = 1000
         self.throttle = 0
 
@@ -266,7 +261,7 @@ class Engine:
             cylinder.crank_angular_velocity += angular_acceleration * deltaTime
 
     def start(self):
-        self.starter_timer = 10.0
+        self.starter_timer = 5.0
 
     def do_computer(self, deltaTime: float):
         is_starting = self.starter_timer > 0
@@ -314,8 +309,6 @@ class Engine:
             moment = cylinder.crank_moment
             crank_moment += moment
 
-        if crank_moment > 0.01:
-            print("GOT CRANK MOVEMENT:", crank_moment)
 
         angular_acceleration = crank_moment / self.moment_of_inertia
 

@@ -1,6 +1,6 @@
 
 boltzmann_constant = 1.380649e-23
-avogadro_constant = 6.02214076e-23
+avogadro_constant = 6.02214076e23
 
 stoichiometric_air_fuel_ratio = 14.7
 fuel_density = 750  # kg/m^3
